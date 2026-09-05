@@ -1,4 +1,4 @@
-# Seismic Risk MLOps
+# Risque sismique — MLOps
 
 ## Présentation du projet
 
@@ -6,7 +6,60 @@ Ce projet met en œuvre une chaîne MLOps complète appliquée à des données s
 
 L’objectif est de construire une solution reproductible allant de la collecte et de la préparation des données jusqu’au déploiement d’une application permettant de classifier un événement sismique.
 
-Le système ne prédit pas la date ni le lieu d’un futur séisme. Il classifie un événement sismique à partir de ses caractéristiques.
+Le système ne prédit pas la date ni le lieu d’un futur séisme. Il classifie un scénario sismique à partir de ses caractéristiques.
+
+## Exécuter le projet
+
+### Prérequis
+
+Seulement deux outils sont nécessaires :
+
+- Git
+- Docker Desktop
+
+Ouvrir PowerShell et exécuter :
+
+```powershell
+git clone https://github.com/tarekalsemaan/SeismicRiskMLOps.git
+cd SeismicRiskMLOps
+docker compose up --build
+```
+
+Une fois l’application démarrée, ouvrir :
+
+```text
+http://localhost:8502
+```
+
+La documentation FastAPI est disponible à :
+
+```text
+http://localhost:8001/docs
+```
+
+Il n’est pas nécessaire d’installer séparément Python, Java, H2O, FastAPI ou Streamlit. Docker installe les dépendances nécessaires dans les conteneurs.
+
+## Effectuer une prédiction
+
+Dans le dashboard :
+
+1. Choisir la date.
+2. Choisir l’heure UTC.
+3. Cliquer directement sur un endroit de la carte mondiale.
+4. La latitude et la longitude sont récupérées automatiquement.
+5. La prédiction est lancée automatiquement.
+6. Le résultat est affiché sous la carte et dans le marqueur.
+
+Le résultat indique :
+
+- la probabilité de séisme fort
+- la probabilité de séisme non fort
+- le seuil de décision
+- la classification finale
+
+La carte affiche également les limites tectoniques mondiales.
+
+La profondeur n’est pas demandée à l’utilisateur. Une valeur interne de 20 km est utilisée afin de rester compatible avec le modèle entraîné.
 
 ## Architecture
 
@@ -25,6 +78,7 @@ USGS API → Python / SQLite → Pandas → DVC / SeaweedFS → H2O AutoML → M
 - MLflow : suivi des expériences et des métriques
 - FastAPI : exposition du modèle via une API REST
 - Streamlit : interface utilisateur
+- Folium : carte interactive
 - Docker : conteneurisation de l’application
 - Docker Compose : orchestration des services
 - GitHub : versionnement du code et du modèle
@@ -57,9 +111,9 @@ DVC décrit les principales étapes du pipeline, notamment :
 - prepare
 - build_features
 
-SeaweedFS est utilisé pour stocker physiquement les différentes versions des données à travers une interface compatible S3.
+SeaweedFS est utilisé pour stocker les différentes versions des données à travers une interface compatible S3.
 
-Git conserve le code source ainsi que les fichiers de configuration et les métadonnées DVC.
+Git conserve le code source, les fichiers de configuration et les métadonnées DVC.
 
 ## Machine Learning
 
@@ -74,9 +128,7 @@ Configuration principale :
 
 Comme la classe des séismes forts représente seulement 6,96 % des observations, le classement des modèles utilise principalement AUCPR.
 
-Le modèle sélectionné est un :
-
-Stacked Ensemble
+Le modèle sélectionné est un **Stacked Ensemble**.
 
 ### Résultats du modèle
 
@@ -85,7 +137,7 @@ Stacked Ensemble
 - RMSE : 0,2405
 - Seuil de décision : 11,92 %
 
-L’évaluation ne repose donc pas uniquement sur l’accuracy, car les classes sont fortement déséquilibrées.
+L’évaluation ne repose pas uniquement sur l’accuracy, car les classes sont fortement déséquilibrées.
 
 ## MLflow
 
@@ -101,32 +153,33 @@ Il permet notamment de conserver :
 
 ## API FastAPI
 
-FastAPI charge le modèle H2O sélectionné et expose un endpoint de prédiction :
+FastAPI charge le modèle H2O sélectionné et expose l’endpoint :
 
+```text
 /predict
+```
 
-L’API reçoit les caractéristiques d’un événement sismique, exécute le modèle H2O et retourne les probabilités ainsi que la classification finale.
+L’API reçoit les caractéristiques du scénario, exécute le modèle H2O et retourne les probabilités ainsi que la classification finale.
 
-Documentation interactive de l’API :
+Documentation interactive :
 
+```text
 http://localhost:8001/docs
+```
 
 ## Dashboard Streamlit
 
-Streamlit fournit une interface permettant de saisir les caractéristiques d’un événement sismique.
+Streamlit fournit l’interface graphique de l’application.
 
-Le dashboard communique avec l’API FastAPI à l’intérieur du réseau Docker.
+L’utilisateur choisit une date et une heure puis clique directement sur la carte. Le dashboard récupère les coordonnées et appelle automatiquement FastAPI.
 
-Adresse utilisée entre les conteneurs :
+À l’intérieur du réseau Docker, Streamlit communique avec l’API à l’adresse :
 
-http://seismic-risk-api:8001/predict
+```text
+http://api:8001/predict
+```
 
-Le résultat affiche notamment :
-
-- la probabilité de séisme fort
-- la probabilité de séisme non fort
-- le seuil de décision
-- la classification finale
+Le résultat reste affiché après la prédiction et un marqueur est ajouté sur la carte.
 
 ## Docker
 
@@ -143,92 +196,32 @@ Le conteneur FastAPI contient également :
 
 Le modèle entraîné est inclus dans le dépôt GitHub et est automatiquement copié dans l’image Docker de l’API lors du build.
 
-## Exécuter le projet sur une nouvelle machine
-
-### Prérequis
-
-Seulement deux outils sont nécessaires :
-
-- Git
-- Docker Desktop
-
-Il n’est pas nécessaire d’installer séparément :
-
-- Python
-- Java
-- H2O
-- FastAPI
-- Streamlit
-
-Docker installe et configure les dépendances nécessaires dans les conteneurs.
-
-### Étape 1 — Cloner le dépôt
-
-Ouvrir PowerShell et exécuter :
-
-git clone https://github.com/tarekalsemaan/SeismicRiskMLOps.git
-
-### Étape 2 — Entrer dans le projet
-
-cd SeismicRiskMLOps
-
-### Étape 3 — Construire et démarrer l’application
-
-docker compose up --build
-
-Docker construit les images et démarre automatiquement :
-
-- le serveur H2O
-- l’API FastAPI
-- le dashboard Streamlit
-- le modèle Stacked Ensemble
-
-### Étape 4 — Ouvrir le dashboard
-
-Dans un navigateur :
-
-http://localhost:8502
-
-### Étape 5 — Tester l’API
-
-La documentation FastAPI est disponible à :
-
-http://localhost:8001/docs
-
-### Étape 6 — Effectuer une prédiction
-
-Dans le dashboard Streamlit :
-
-1. Saisir les caractéristiques de l’événement sismique.
-2. Cliquer sur Predict.
-3. Observer les probabilités.
-4. Comparer la probabilité de la classe forte avec le seuil de décision.
-5. Observer la classification finale.
-
 ## Validation sur une nouvelle installation
 
 La reproductibilité du projet a été vérifiée à partir d’un nouveau clone du dépôt GitHub dans un dossier séparé.
 
-Le test complet suivant a été réalisé avec succès :
+Le test complet a été réalisé avec succès :
 
-GitHub clone
-→ Docker build
-→ démarrage H2O
-→ chargement du modèle
-→ démarrage FastAPI
-→ démarrage Streamlit
-→ appel /predict
-→ résultat de prédiction
+GitHub clone  
+→ Docker build  
+→ H2O  
+→ chargement du modèle  
+→ FastAPI  
+→ Streamlit  
+→ carte interactive  
+→ prédiction
 
 L’API a retourné :
 
+```text
 POST /predict HTTP/1.1 200 OK
+```
 
-Cela confirme que le dashboard communique correctement avec FastAPI et que l’API exécute le modèle H2O.
+La carte, les limites tectoniques, la sélection d’une position, la prédiction automatique et l’affichage du résultat ont également été testés avec succès.
 
-### Exemple de résultat obtenu
+### Exemple de résultat
 
-Lors du test :
+Lors d’un test :
 
 - Probabilité de séisme fort : 18,86 %
 - Probabilité de séisme non fort : 81,14 %
@@ -236,41 +229,41 @@ Lors du test :
 
 Comme 18,86 % est supérieur au seuil de 11,92 %, la classification retournée est :
 
-Séisme fort
+**Séisme fort**
 
 ## GitHub Actions
 
 GitHub Actions assure l’intégration continue du projet.
 
-Le pipeline CI s’exécute automatiquement lors des opérations configurées dans le dépôt.
-
-Il permet notamment de :
+Le pipeline CI permet notamment de :
 
 - vérifier le code Python
 - valider la construction des images Docker
-
-La version contenant le modèle H2O entraîné a également été validée avec succès par le pipeline GitHub Actions.
 
 ## Arrêter l’application
 
 Dans la fenêtre où Docker Compose est exécuté :
 
+```text
 Ctrl+C
+```
 
-Pour supprimer les conteneurs et le réseau créés par Docker Compose :
+Puis :
 
+```powershell
 docker compose down
+```
 
 ## Limites
 
 Ce projet est une démonstration pédagogique de Machine Learning et de MLOps.
 
-Le modèle classifie des événements sismiques enregistrés.
-
-Il ne prédit pas :
+Le modèle ne prédit pas :
 
 - quand un futur séisme aura lieu
 - où un futur séisme aura lieu
+
+Le point choisi sur la carte représente simplement un scénario soumis au modèle.
 
 ## Perspectives
 
@@ -280,6 +273,7 @@ Plusieurs améliorations peuvent être envisagées :
 - utiliser une période historique plus longue
 - améliorer les variables prédictives
 - comparer davantage de modèles
+- améliorer la gestion de la profondeur
 - déployer l’application dans le cloud
 
 ## Code source
