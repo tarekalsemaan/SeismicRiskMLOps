@@ -4,3 +4,10 @@
 __pycache__/
 *.pyc
 seaweed_test.txt
+
+# MLflow local storage
+mlflow.db
+mlartifacts/
+
+# Generated ML models
+models/
