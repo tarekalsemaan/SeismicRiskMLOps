@@ -30,6 +30,10 @@ jobs:
         run: |
           python -m compileall api dashboard src
 
+      - name: Create placeholder models directory
+        run: |
+          mkdir -p models
+
       - name: Build FastAPI Docker image
         run: |
           docker build -f Dockerfile.api -t seismic-risk-api:test .
