@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: seismic-risk-api
+    
     ports:
       - "8001:8001"
     networks:
@@ -14,11 +14,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
-    container_name: seismic-risk-dashboard
+    
     ports:
       - "8502:8502"
     environment:
-      API_URL: http://seismic-risk-api:8001/predict
+      API_URL: http://api:8001/predict
     depends_on:
       - api
     networks:
