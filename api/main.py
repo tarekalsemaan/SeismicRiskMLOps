@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import pandas as pd
 import h2o
 
-MODEL_PATH = r"models\StackedEnsemble_AllModels_1_AutoML_1_20260904_204429"
+MODEL_PATH = "models/StackedEnsemble_AllModels_1_AutoML_1_20260904_204429"
 
 FEATURES = [
     "latitude",
