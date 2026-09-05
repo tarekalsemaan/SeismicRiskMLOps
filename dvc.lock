@@ -1,0 +1,34 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: python src/prepare_data.py
+    deps:
+    - path: data/usgs_historical_2026.csv
+      hash: md5
+      md5: 65a086c006815426997d39a6e64f154a
+      size: 1932114
+    - path: src/prepare_data.py
+      hash: md5
+      md5: 39559d441d5dd823c9f303f5bdde41fb
+      size: 2032
+    outs:
+    - path: data/usgs_clean_2026.csv
+      hash: md5
+      md5: 939df9bd997d8f5967e9f682952f6c0d
+      size: 2881855
+  build_features:
+    cmd: python src/build_features.py
+    deps:
+    - path: data/usgs_clean_2026.csv
+      hash: md5
+      md5: 939df9bd997d8f5967e9f682952f6c0d
+      size: 2881855
+    - path: src/build_features.py
+      hash: md5
+      md5: 9831a1ce75a6c5cf57af9fd02860c02c
+      size: 979
+    outs:
+    - path: data/usgs_ml_ready_2026.csv
+      hash: md5
+      md5: 3cd1eec3c0d6cb9b2d05d992f4842531
+      size: 706225

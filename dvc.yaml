@@ -1,0 +1,16 @@
+stages:
+  prepare:
+    cmd: python src/prepare_data.py
+    deps:
+      - src/prepare_data.py
+      - data/usgs_historical_2026.csv
+    outs:
+      - data/usgs_clean_2026.csv
+
+  build_features:
+    cmd: python src/build_features.py
+    deps:
+      - src/build_features.py
+      - data/usgs_clean_2026.csv
+    outs:
+      - data/usgs_ml_ready_2026.csv
