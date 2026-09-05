@@ -1,99 +1,350 @@
-import streamlit as st
-import requests
 import os
+from datetime import datetime
+
+import folium
+import requests
+import streamlit as st
+from streamlit_folium import st_folium
+
+
+# ============================================================
+# Configuration
+# ============================================================
 
 API_URL = os.getenv(
     "API_URL",
     "http://127.0.0.1:8001/predict"
 )
 
+DEFAULT_DEPTH_KM = 20.0
+
+TECTONIC_BOUNDARIES_URL = (
+    "https://raw.githubusercontent.com/fraxen/"
+    "tectonicplates/master/GeoJSON/PB2002_boundaries.json"
+)
+
+
+# ============================================================
+# Session state
+# ============================================================
+
+if "selected_latitude" not in st.session_state:
+    st.session_state.selected_latitude = None
+
+if "selected_longitude" not in st.session_state:
+    st.session_state.selected_longitude = None
+
+if "prediction_result" not in st.session_state:
+    st.session_state.prediction_result = None
+
+
+# ============================================================
+# Page
+# ============================================================
+
 st.set_page_config(
-    page_title="Seismic Risk Dashboard",
-    layout="centered"
+    page_title="Risque sismique - MLOps",
+    page_icon="🌍",
+    layout="wide"
 )
 
-st.title("Seismic Risk Dashboard")
+st.title("🌍 Risque sismique - MLOps")
+
 st.write(
-    "Enter earthquake characteristics and let the H2O model classify "
-    "whether the recorded event belongs to the strong-earthquake class."
+    "Sélectionnez une date et une heure, puis cliquez sur la carte mondiale. "
+    "Le modèle H2O classe automatiquement le scénario sismique associé."
 )
 
-latitude = st.number_input("Latitude", value=35.0)
-longitude = st.number_input("Longitude", value=140.0)
-depth = st.number_input("Depth (km)", value=20.0)
+st.info(
+    "Cette application classe un scénario sismique. "
+    "Elle ne prédit pas où ni quand un futur séisme se produira."
+)
 
-month = st.number_input("Month", min_value=1, max_value=12, value=9)
-day = st.number_input("Day", min_value=1, max_value=31, value=4)
-hour = st.number_input("Hour (UTC)", min_value=0, max_value=23, value=12)
-day_of_week = st.number_input("Day of week", min_value=0, max_value=6, value=4)
 
-if st.button("Predict"):
+# ============================================================
+# Date and time
+# ============================================================
 
-    payload = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "depth": depth,
-        "month": month,
-        "day": day,
-        "hour": hour,
-        "day_of_week": day_of_week
+col_date, col_time = st.columns(2)
+
+with col_date:
+    selected_date = st.date_input(
+        "📅 Date de l'événement",
+        value=datetime.utcnow().date()
+    )
+
+with col_time:
+    selected_time = st.time_input(
+        "🕒 Heure UTC",
+        value=datetime.utcnow().time().replace(
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+    )
+
+
+month = selected_date.month
+day = selected_date.day
+hour = selected_time.hour
+day_of_week = selected_date.weekday()
+
+
+# ============================================================
+# Build map
+# ============================================================
+
+st.subheader("🗺️ Cliquez sur la carte")
+
+st.caption(
+    "Les lignes rouges représentent les limites tectoniques PB2002."
+)
+
+world_map = folium.Map(
+    location=[20, 0],
+    zoom_start=2,
+    tiles="OpenStreetMap",
+    control_scale=True
+)
+
+folium.GeoJson(
+    TECTONIC_BOUNDARIES_URL,
+    name="Limites tectoniques",
+    style_function=lambda feature: {
+        "color": "#ff3b30",
+        "weight": 2,
+        "opacity": 0.85
     }
+).add_to(world_map)
 
-    try:
-        response = requests.post(
-            API_URL,
-            json=payload,
-            timeout=30
+
+# ============================================================
+# Existing prediction marker
+# ============================================================
+
+if (
+    st.session_state.selected_latitude is not None
+    and st.session_state.selected_longitude is not None
+):
+
+    lat = st.session_state.selected_latitude
+    lon = st.session_state.selected_longitude
+
+    result = st.session_state.prediction_result
+
+    if result is not None:
+
+        strong_pct = result["probability_strong"] * 100
+        threshold_pct = result["decision_threshold_percent"]
+
+        if result["strong_earthquake"]:
+            classification = "⚠️ Séisme fort"
+        else:
+            classification = "✅ Séisme non fort"
+
+        popup_text = (
+            f"<b>{classification}</b><br><br>"
+            f"Latitude : {lat:.4f}<br>"
+            f"Longitude : {lon:.4f}<br>"
+            f"Probabilité forte : {strong_pct:.2f}%<br>"
+            f"Seuil : {threshold_pct:.2f}%"
         )
 
-        if response.status_code == 200:
-            result = response.json()
+    else:
 
-            strong_pct = result["probability_strong"] * 100
-            not_strong_pct = result["probability_not_strong"] * 100
-            threshold_pct = result["decision_threshold_percent"]
+        popup_text = (
+            "<b>Position sélectionnée</b><br>"
+            f"Latitude : {lat:.4f}<br>"
+            f"Longitude : {lon:.4f}"
+        )
 
-            st.success("Prediction completed")
+    marker = folium.Marker(
+        [lat, lon],
+        popup=folium.Popup(
+            popup_text,
+            max_width=350
+        ),
+        tooltip="Cliquez pour voir le résultat"
+    )
 
-            col1, col2 = st.columns(2)
+    marker.add_to(world_map)
 
-            with col1:
-                st.metric(
-                    "Strong probability",
-                    f"{strong_pct:.2f}%"
+
+folium.LayerControl().add_to(world_map)
+
+
+# ============================================================
+# Interactive map
+# ============================================================
+
+map_data = st_folium(
+    world_map,
+    width=None,
+    height=600,
+    returned_objects=["last_clicked"],
+    key="main_map"
+)
+
+
+# ============================================================
+# Detect new click
+# ============================================================
+
+if map_data and map_data.get("last_clicked"):
+
+    clicked_lat = map_data["last_clicked"]["lat"]
+    clicked_lon = map_data["last_clicked"]["lng"]
+
+    old_lat = st.session_state.selected_latitude
+    old_lon = st.session_state.selected_longitude
+
+    is_new_click = (
+        old_lat is None
+        or old_lon is None
+        or abs(clicked_lat - old_lat) > 0.000001
+        or abs(clicked_lon - old_lon) > 0.000001
+    )
+
+    if is_new_click:
+
+        st.session_state.selected_latitude = clicked_lat
+        st.session_state.selected_longitude = clicked_lon
+
+        payload = {
+            "latitude": clicked_lat,
+            "longitude": clicked_lon,
+            "depth": DEFAULT_DEPTH_KM,
+            "month": month,
+            "day": day,
+            "hour": hour,
+            "day_of_week": day_of_week
+        }
+
+        try:
+
+            with st.spinner("Analyse du scénario..."):
+
+                response = requests.post(
+                    API_URL,
+                    json=payload,
+                    timeout=30
                 )
 
-            with col2:
-                st.metric(
-                    "Not-strong probability",
-                    f"{not_strong_pct:.2f}%"
-                )
+            if response.status_code == 200:
 
-            st.metric(
-                "Decision threshold",
-                f"{threshold_pct:.2f}%"
-            )
+                st.session_state.prediction_result = response.json()
 
-            if result["strong_earthquake"]:
-                st.warning("Classification: Strong earthquake")
-                st.write(
-                    f"Reason: {strong_pct:.2f}% is above the "
-                    f"{threshold_pct:.2f}% decision threshold."
-                )
+                st.rerun()
+
             else:
-                st.info("Classification: Not strong earthquake")
-                st.write(
-                    f"Reason: {strong_pct:.2f}% is below the "
-                    f"{threshold_pct:.2f}% decision threshold."
+
+                st.session_state.prediction_result = None
+
+                st.error(
+                    f"Erreur API : {response.status_code}"
                 )
 
-            st.caption(
-                "This model classifies a recorded earthquake event. "
-                "It does not predict when or where a future earthquake will occur."
+                st.code(response.text)
+
+        except Exception as e:
+
+            st.session_state.prediction_result = None
+
+            st.error(
+                f"Impossible de communiquer avec FastAPI : {e}"
             )
 
-        else:
-            st.error(f"API error: {response.status_code}")
 
-    except Exception as e:
-        st.error(f"Could not connect to FastAPI: {e}")
+# ============================================================
+# Persistent result below map
+# ============================================================
+
+result = st.session_state.prediction_result
+
+latitude = st.session_state.selected_latitude
+longitude = st.session_state.selected_longitude
+
+
+if (
+    result is not None
+    and latitude is not None
+    and longitude is not None
+):
+
+    strong_pct = result["probability_strong"] * 100
+    not_strong_pct = result["probability_not_strong"] * 100
+    threshold_pct = result["decision_threshold_percent"]
+
+    st.divider()
+
+    st.success("✅ Prédiction terminée")
+
+    st.write(
+        f"📍 Position : {latitude:.4f}, {longitude:.4f}"
+    )
+
+    st.write(
+        f"📅 {selected_date.strftime('%Y-%m-%d')} "
+        f"— 🕒 {hour:02d}:00 UTC"
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Probabilité de séisme fort",
+            f"{strong_pct:.2f}%"
+        )
+
+    with col2:
+        st.metric(
+            "Probabilité de séisme non fort",
+            f"{not_strong_pct:.2f}%"
+        )
+
+    with col3:
+        st.metric(
+            "Seuil de décision",
+            f"{threshold_pct:.2f}%"
+        )
+
+
+    if result["strong_earthquake"]:
+
+        st.warning(
+            "⚠️ Classification : séisme fort"
+        )
+
+        st.write(
+            f"{strong_pct:.2f}% est supérieur "
+            f"au seuil de {threshold_pct:.2f}%."
+        )
+
+    else:
+
+        st.info(
+            "ℹ️ Classification : séisme non fort"
+        )
+
+        st.write(
+            f"{strong_pct:.2f}% est inférieur "
+            f"au seuil de {threshold_pct:.2f}%."
+        )
+
+
+    st.caption(
+        "La profondeur n'est pas demandée à l'utilisateur. "
+        f"Le modèle utilise actuellement une valeur interne "
+        f"de {DEFAULT_DEPTH_KM:.0f} km."
+    )
+
+    st.caption(
+        "La classification concerne uniquement le scénario sélectionné. "
+        "Elle ne signifie pas qu'un futur séisme se produira à cet endroit."
+    )
+
+else:
+
+    st.warning(
+        "👆 Cliquez sur un emplacement de la carte pour lancer la prédiction."
+    )
