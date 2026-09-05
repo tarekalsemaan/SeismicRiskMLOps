@@ -10,4 +10,6 @@ mlflow.db
 mlartifacts/
 
 # Generated ML models
-models/
+models/*
+!models/StackedEnsemble_AllModels_1_AutoML_1_20260904_204429
+!models/leaderboard.csv
