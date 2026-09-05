@@ -1,0 +1,6 @@
+.venv/
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+__pycache__/
+*.pyc
+seaweed_test.txt

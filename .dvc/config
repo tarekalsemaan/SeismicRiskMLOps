@@ -1,0 +1,7 @@
+[core]
+    remote = seaweed
+['remote "localremote"']
+    url = C:\DVCStorage\SeismicRiskMLOps
+['remote "seaweed"']
+    url = s3://seismic-risk-dvc
+    endpointurl = http://localhost:8333
